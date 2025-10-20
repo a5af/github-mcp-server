@@ -989,15 +989,6 @@ Possible options:
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **create_or_update_file** - Create or update file
-  - `branch`: Branch to create/update the file in (string, required)
-  - `content`: Content of the file (string, required)
-  - `message`: Commit message (string, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path where to create/update the file (string, required)
-  - `repo`: Repository name (string, required)
-  - `sha`: Required if updating an existing file. The blob SHA of the file being replaced. (string, optional)
-
 - **create_repository** - Create repository
   - `autoInit`: Initialize with README (boolean, optional)
   - `description`: Repository description (string, optional)
@@ -1005,25 +996,10 @@ Possible options:
   - `organization`: Organization to create the repository in (omit to create in your personal account) (string, optional)
   - `private`: Whether repo should be private (boolean, optional)
 
-- **delete_file** - Delete file
-  - `branch`: Branch to delete the file from (string, required)
-  - `message`: Commit message (string, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path to the file to delete (string, required)
-  - `repo`: Repository name (string, required)
-
 - **fork_repository** - Fork repository
   - `organization`: Organization to fork to (string, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
-
-- **get_commit** - Get commit details
-  - `include_diff`: Whether to include file diffs and stats in the response. Default is true. (boolean, optional)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `sha`: Commit SHA, branch name, or tag name (string, required)
 
 - **get_file_contents** - Get file or directory contents
   - `owner`: Repository owner (username or organization) (string, required)
@@ -1032,52 +1008,53 @@ Possible options:
   - `repo`: Repository name (string, required)
   - `sha`: Accepts optional commit SHA. If specified, it will be used instead of ref (string, optional)
 
-- **get_latest_release** - Get latest release
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **get_release_by_tag** - Get a release by tag name
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `tag`: Tag name (e.g., 'v1.0.0') (string, required)
-
-- **get_tag** - Get tag details
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `tag`: Tag name (string, required)
-
 - **list_branches** - List branches
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
-- **list_commits** - List commits
-  - `author`: Author username or email address to filter commits by (string, optional)
+- **repository_commits** - Repository commits
+  - `author`: For 'list' only: author username or email address to filter commits by (string, optional)
+  - `include_diff`: For 'get' only: whether to include file diffs and stats. Default is true (boolean, optional)
+  - `method`: Operation to perform: 'get' for commit details, 'list' for commit history (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
-  - `sha`: Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA. (string, optional)
+  - `sha`: For 'get': commit SHA/branch/tag (required). For 'list': optional filter for commits up to this SHA/branch/tag (string, optional)
 
-- **list_releases** - List releases
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **list_tags** - List tags
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **push_files** - Push files to repository
-  - `branch`: Branch to push to (string, required)
-  - `files`: Array of file objects to push, each object with path (string) and content (string) (object[], required)
+- **repository_files** - Repository files
+  - `branch`: Branch to operate on (string, required)
+  - `content`: For 'create_or_update' only: file content (required when method=create_or_update) (string, optional)
+  - `files`: For 'push_multiple' only: array of file objects (required when method=push_multiple) (object[], optional)
   - `message`: Commit message (string, required)
+  - `method`: Operation: 'create_or_update' for single file, 'delete' to remove file, 'push_multiple' for batch (string, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `path`: For 'create_or_update' and 'delete': file path (required for these methods) (string, optional)
+  - `repo`: Repository name (string, required)
+  - `sha`: For 'create_or_update' only: blob SHA of file being replaced (required if updating existing file) (string, optional)
+
+- **repository_releases** - Repository releases
+  - `method`: Operation: 'list' for all releases, 'get_latest' for most recent, 'get_by_tag' for specific release (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `tag`: For 'get_by_tag' only: tag name (e.g., 'v1.0.0') - required when method=get_by_tag (string, optional)
+
+- **repository_stars** - Repository stars
+  - `method`: Operation: 'star' to star repository, 'unstar' to remove star (string, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+
+- **repository_tags** - Repository tags
+  - `method`: Operation: 'list' for all tags, 'get' for specific tag details (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `tag`: For 'get' only: tag name (required when method=get) (string, optional)
 
 - **search_code** - Search code
   - `order`: Sort order for results (string, optional)
