@@ -32,14 +32,14 @@ var (
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			// Load authentication configuration (supports both PAT and GitHub App)
-			authType, token, err := auth.LoadAuthConfigFromEnv()
+			authConfig, err := auth.LoadAuthConfigFromEnv()
 			if err != nil {
 				return fmt.Errorf("authentication error: %w", err)
 			}
 
 			// Log which authentication method is being used
-			if authType == "github-app" {
-				fmt.Fprintf(os.Stderr, "[github-mcp-server] Using GitHub App authentication\n")
+			if authConfig.AuthType == "github-app" {
+				fmt.Fprintf(os.Stderr, "[github-mcp-server] Using GitHub App authentication with automatic token refresh\n")
 			} else {
 				fmt.Fprintf(os.Stderr, "[github-mcp-server] Using Personal Access Token authentication\n")
 			}
@@ -61,7 +61,8 @@ var (
 			stdioServerConfig := ghmcp.StdioServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
-				Token:                token,
+				Token:                authConfig.Token,
+				AuthProvider:         authConfig.Provider,
 				EnabledToolsets:      enabledToolsets,
 				DynamicToolsets:      viper.GetBool("dynamic_toolsets"),
 				ReadOnly:             viper.GetBool("read-only"),

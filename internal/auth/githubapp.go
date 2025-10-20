@@ -181,45 +181,60 @@ func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
 	return key, nil
 }
 
+// AuthConfig represents authentication configuration
+type AuthConfig struct {
+	AuthType string                   // "pat" or "github-app"
+	Token    string                   // Current token
+	Provider *GitHubAppAuthProvider   // Auth provider (nil for PAT)
+}
+
 // LoadAuthConfigFromEnv loads authentication configuration from environment variables
 // Supports both Personal Access Token and GitHub App authentication
-func LoadAuthConfigFromEnv() (authType string, token string, err error) {
+func LoadAuthConfigFromEnv() (*AuthConfig, error) {
 	// Check for PAT first (backward compatibility)
 	if pat := os.Getenv("GITHUB_PERSONAL_ACCESS_TOKEN"); pat != "" {
-		return "pat", pat, nil
+		return &AuthConfig{
+			AuthType: "pat",
+			Token:    pat,
+			Provider: nil,
+		}, nil
 	}
 
 	// Check for GitHub App
 	appID := os.Getenv("GITHUB_APP_ID")
 	if appID == "" {
-		return "", "", fmt.Errorf("no authentication credentials provided (set GITHUB_PERSONAL_ACCESS_TOKEN or GITHUB_APP_* vars)")
+		return nil, fmt.Errorf("no authentication credentials provided (set GITHUB_PERSONAL_ACCESS_TOKEN or GITHUB_APP_* vars)")
 	}
 
 	keyPath := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH")
 	if keyPath == "" {
-		return "", "", fmt.Errorf("GITHUB_APP_PRIVATE_KEY_PATH required when using GitHub App")
+		return nil, fmt.Errorf("GITHUB_APP_PRIVATE_KEY_PATH required when using GitHub App")
 	}
 
 	installIDStr := os.Getenv("GITHUB_APP_INSTALLATION_ID")
 	if installIDStr == "" {
-		return "", "", fmt.Errorf("GITHUB_APP_INSTALLATION_ID required when using GitHub App")
+		return nil, fmt.Errorf("GITHUB_APP_INSTALLATION_ID required when using GitHub App")
 	}
 
 	installID, err := strconv.ParseInt(strings.TrimSpace(installIDStr), 10, 64)
 	if err != nil {
-		return "", "", fmt.Errorf("invalid GITHUB_APP_INSTALLATION_ID: %w", err)
+		return nil, fmt.Errorf("invalid GITHUB_APP_INSTALLATION_ID: %w", err)
 	}
 
 	// Create GitHub App auth provider
 	provider, err := NewGitHubAppAuthProvider(appID, keyPath, installID)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to initialize GitHub App auth: %w", err)
+		return nil, fmt.Errorf("failed to initialize GitHub App auth: %w", err)
 	}
 
-	token, err = provider.GetToken()
+	token, err := provider.GetToken()
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get GitHub App token: %w", err)
+		return nil, fmt.Errorf("failed to get GitHub App token: %w", err)
 	}
 
-	return "github-app", token, nil
+	return &AuthConfig{
+		AuthType: "github-app",
+		Token:    token,
+		Provider: provider,
+	}, nil
 }

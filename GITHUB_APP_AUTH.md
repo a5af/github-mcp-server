@@ -232,6 +232,19 @@ Exchange for New Installation Token
 Continue Using Fresh Token
 ```
 
+### Automatic Token Recovery
+
+The server includes automatic recovery from authentication failures:
+
+- **On 401 Response**: When a GitHub API request receives a 401 (Unauthorized) response, the server automatically:
+  1. Forces an immediate token refresh (generates new JWT → exchanges for new installation token)
+  2. Retries the failed request with the fresh token
+  3. Logs the recovery process to stderr
+
+- **Why This Matters**: Even if the background refresh mechanism fails for any reason, the server will automatically recover when the next API request is made. This eliminates the need to restart the MCP server process.
+
+- **Implementation**: Uses a custom HTTP transport (`RefreshingAuthTransport`) that wraps all GitHub API calls and intercepts 401 responses.
+
 ### Security Notes
 
 - **Private Key**: Never commit your private key to version control. Store it securely and reference it via environment variable
@@ -240,6 +253,22 @@ Continue Using Fresh Token
 - **Token Refresh**: Tokens are proactively refreshed to avoid service interruption
 
 ## Troubleshooting
+
+### 401 Authentication Errors During API Calls
+
+As of the latest version, **401 errors are automatically recovered**. When the server receives a 401 response from GitHub:
+
+1. The server detects the authentication failure
+2. Immediately forces a token refresh
+3. Retries the request with the fresh token
+4. Logs the recovery to stderr: `[refreshing-auth-transport] Got 401 response, forcing token refresh`
+
+**No manual intervention required** - the server will self-heal automatically. You should only see occasional log messages if token refresh issues occur.
+
+If you're seeing repeated 401 errors despite automatic recovery, check:
+- Your GitHub App credentials are still valid
+- The private key file is accessible and hasn't been modified
+- System clock is accurate (JWT validation is time-sensitive)
 
 ### Error: "authentication error: no authentication credentials provided"
 

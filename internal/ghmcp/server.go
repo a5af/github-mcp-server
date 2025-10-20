@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/github/github-mcp-server/internal/auth"
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
 	mcplog "github.com/github/github-mcp-server/pkg/log"
@@ -34,6 +35,9 @@ type MCPServerConfig struct {
 
 	// GitHub Token to authenticate with the GitHub API
 	Token string
+
+	// AuthProvider for automatic token refresh (nil for PAT authentication)
+	AuthProvider *auth.GitHubAppAuthProvider
 
 	// EnabledToolsets is a list of toolsets to enable
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
@@ -62,7 +66,20 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	}
 
 	// Construct our REST client
-	restClient := gogithub.NewClient(nil).WithAuthToken(cfg.Token)
+	// Use refreshing transport if auth provider is available (GitHub App auth)
+	var restTransport http.RoundTripper
+	if cfg.AuthProvider != nil {
+		restTransport = auth.NewRefreshingAuthTransport(http.DefaultTransport, cfg.AuthProvider)
+	} else {
+		// For PAT auth, use static bearer token
+		restTransport = &bearerAuthTransport{
+			transport: http.DefaultTransport,
+			token:     cfg.Token,
+		}
+	}
+
+	restHTTPClient := &http.Client{Transport: restTransport}
+	restClient := gogithub.NewClient(restHTTPClient)
 	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", cfg.Version)
 	restClient.BaseURL = apiHost.baseRESTURL
 	restClient.UploadURL = apiHost.uploadURL
@@ -70,12 +87,18 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	// Construct our GraphQL client
 	// We're using NewEnterpriseClient here unconditionally as opposed to NewClient because we already
 	// did the necessary API host parsing so that github.com will return the correct URL anyway.
-	gqlHTTPClient := &http.Client{
-		Transport: &bearerAuthTransport{
+	var gqlTransport http.RoundTripper
+	if cfg.AuthProvider != nil {
+		gqlTransport = auth.NewRefreshingAuthTransport(http.DefaultTransport, cfg.AuthProvider)
+	} else {
+		// For PAT auth, use static bearer token
+		gqlTransport = &bearerAuthTransport{
 			transport: http.DefaultTransport,
 			token:     cfg.Token,
-		},
-	} // We're going to wrap the Transport later in beforeInit
+		}
+	}
+
+	gqlHTTPClient := &http.Client{Transport: gqlTransport} // We're going to wrap the Transport later in beforeInit
 	gqlClient := githubv4.NewEnterpriseClient(apiHost.graphqlURL.String(), gqlHTTPClient)
 
 	// When a client send an initialize request, update the user agent to include the client info.
@@ -165,6 +188,9 @@ type StdioServerConfig struct {
 	// GitHub Token to authenticate with the GitHub API
 	Token string
 
+	// AuthProvider for automatic token refresh (nil for PAT authentication)
+	AuthProvider *auth.GitHubAppAuthProvider
+
 	// EnabledToolsets is a list of toolsets to enable
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
 	EnabledToolsets []string
@@ -202,6 +228,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Version:           cfg.Version,
 		Host:              cfg.Host,
 		Token:             cfg.Token,
+		AuthProvider:      cfg.AuthProvider,
 		EnabledToolsets:   cfg.EnabledToolsets,
 		DynamicToolsets:   cfg.DynamicToolsets,
 		ReadOnly:          cfg.ReadOnly,
