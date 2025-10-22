@@ -1,5 +1,25 @@
 ## [Unreleased]
 
+
+## [0.20.5] - 2025-10-22
+
+### Fixed
+- `get_me` tool now uses `ListRepos` API endpoint instead of `GetInstallation` for GitHub App authentication
+- Resolves 403 "Resource not accessible by integration" errors with installation access tokens
+- GitHub App installations can now retrieve account details without requiring JWT authentication
+
+### Technical
+- Replaced `client.Apps.GetInstallation(ctx, installationID)` with `client.Apps.ListRepos(ctx, nil)`
+- Updated `GetMe` function in `context_tools.go` to extract owner info from first accessible repository
+- Added automated tests for GitHub App authentication in `context_tools_githubapp_test.go`
+- All existing tests pass with the new implementation
+
+### Background
+GitHub App authentication uses installation access tokens which have different API access than JWT tokens:
+- JWT tokens: Can call `GetInstallation` endpoint
+- Installation tokens: Can call `ListRepos` but not `GetInstallation`
+This fix aligns with proper GitHub App authentication patterns.
+
 ## [0.20.4] - 2025-10-22
 
 ### Fixed

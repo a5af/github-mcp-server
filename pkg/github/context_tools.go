@@ -56,33 +56,35 @@ func GetMe(getClient GetClientFn, installationID int64, t translations.Translati
 		// Try getting user info first (works for OAuth tokens)
 		user, res, err := client.Users.Get(ctx, "")
 
-		// If we get 401 or 403, we're likely using GitHub App auth - try installation endpoint
+		// If we get 401 or 403, we're likely using GitHub App auth
+		// Use installation token to list repos and extract owner info
 		if err != nil && res != nil && (res.StatusCode == 401 || res.StatusCode == 403) {
-			// Get installation info instead
-			installation, _, instErr := client.Apps.GetInstallation(ctx, installationID)
-			if instErr != nil {
-				// If installation endpoint also fails, return original user error
+			// List repositories accessible to this installation
+			// This works with installation tokens (unlike GetInstallation which needs JWT)
+			repos, _, repoErr := client.Apps.ListRepos(ctx, nil)
+			if repoErr != nil || repos == nil || len(repos.Repositories) == 0 {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get user or installation (installation ID: " + fmt.Sprintf("%d", installationID) + ")",
+					"failed to get installation info (installation ID: "+fmt.Sprintf("%d", installationID)+"): no accessible repositories found",
 					res,
 					err,
 				), nil
 			}
 
-			// Return installation account info
-			account := installation.GetAccount()
+			// Extract owner info from first repository
+			// All repos in an installation belong to the same owner (org or user)
+			owner := repos.Repositories[0].GetOwner()
 			minimalUser := MinimalUser{
-				Login:      account.GetLogin(),
-				ID:         account.GetID(),
-				ProfileURL: account.GetHTMLURL(),
-				AvatarURL:  account.GetAvatarURL(),
+				Login:      owner.GetLogin(),
+				ID:         owner.GetID(),
+				ProfileURL: owner.GetHTMLURL(),
+				AvatarURL:  owner.GetAvatarURL(),
 				Details: &UserDetails{
-					Name:     account.GetName(),
-					Company:  account.GetCompany(),
-					Blog:     account.GetBlog(),
-					Location: account.GetLocation(),
-					Email:    account.GetEmail(),
-					Bio:      account.GetBio(),
+					Name:     owner.GetName(),
+					Company:  owner.GetCompany(),
+					Blog:     owner.GetBlog(),
+					Location: owner.GetLocation(),
+					Email:    owner.GetEmail(),
+					Bio:      owner.GetBio(),
 				},
 			}
 
