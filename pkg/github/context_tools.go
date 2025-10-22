@@ -2,6 +2,8 @@ package github
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -33,12 +35,13 @@ type UserDetails struct {
 	OwnedPrivateRepos int64     `json:"owned_private_repos,omitempty"`
 }
 
-// GetMe creates a tool to get details of the authenticated user.
+// GetMe creates a tool to get details of the authenticated user or GitHub App installation.
+// For OAuth tokens, returns user details. For GitHub App tokens, returns installation account details.
 func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	tool := mcp.NewTool("get_me",
-		mcp.WithDescription(t("TOOL_GET_ME_DESCRIPTION", "Get details of the authenticated GitHub user. Use this when a request is about the user's own profile for GitHub. Or when information is missing to build other tool calls.")),
+		mcp.WithDescription(t("TOOL_GET_ME_DESCRIPTION", "Get details of the authenticated GitHub user or installation. Use this to verify your identity. For OAuth: returns user profile. For GitHub Apps: returns installation account (org/user the app is installed on).")),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
-			Title:        t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
+			Title:        t("TOOL_GET_ME_USER_TITLE", "Get my identity"),
 			ReadOnlyHint: ToBoolPtr(true),
 		}),
 	)
@@ -50,7 +53,46 @@ func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Too
 			return mcp.NewToolResultErrorFromErr("failed to get GitHub client", err), nil
 		}
 
+		// Try getting user info first (works for OAuth tokens)
 		user, res, err := client.Users.Get(ctx, "")
+
+		// If we get 401 or 403, we're likely using GitHub App auth - try installation endpoint
+		if err != nil && res != nil && (res.StatusCode == 401 || res.StatusCode == 403) {
+			// Get installation info instead
+			installation, _, instErr := client.Apps.GetInstallation(ctx, 0)
+			if instErr != nil {
+				// If installation endpoint also fails, return original user error
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to get user or installation",
+					res,
+					err,
+				), nil
+			}
+
+			// Return installation account info
+			account := installation.GetAccount()
+			minimalUser := MinimalUser{
+				Login:      account.GetLogin(),
+				ID:         account.GetID(),
+				ProfileURL: account.GetHTMLURL(),
+				AvatarURL:  account.GetAvatarURL(),
+				Details: &UserDetails{
+					Name:     account.GetName(),
+					Company:  account.GetCompany(),
+					Blog:     account.GetBlog(),
+					Location: account.GetLocation(),
+					Email:    account.GetEmail(),
+					Bio:      account.GetBio(),
+				},
+			}
+
+			r, err := json.Marshal(minimalUser)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal installation account: %w", err)
+			}
+			return mcp.NewToolResultText(string(r)), nil
+		}
+
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx,
 				"failed to get user",
