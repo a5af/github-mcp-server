@@ -20,7 +20,7 @@ import (
 func Test_GetMe(t *testing.T) {
 	t.Parallel()
 
-	tool, _ := GetMe(nil, translations.NullTranslationHelper)
+	tool, _ := GetMe(nil, 0, translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	// Verify some basic very important properties
@@ -108,7 +108,7 @@ func Test_GetMe(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, handler := GetMe(tc.stubbedGetClientFn, translations.NullTranslationHelper)
+			_, handler := GetMe(tc.stubbedGetClientFn, 0, translations.NullTranslationHelper)
 
 			request := createMCPRequest(tc.requestArgs)
 			result, err := handler(context.Background(), request)

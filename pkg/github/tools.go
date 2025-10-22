@@ -155,7 +155,7 @@ func GetDefaultToolsetIDs() []string {
 	}
 }
 
-func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int) *toolsets.ToolsetGroup {
+func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int, installationID int64) *toolsets.ToolsetGroup {
 	tsg := toolsets.NewToolsetGroup(readOnly)
 
 	// Define all available features with their default state (disabled)
@@ -306,7 +306,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 
 	contextTools := toolsets.NewToolset(ToolsetMetadataContext.ID, ToolsetMetadataContext.Description).
 		AddReadTools(
-			toolsets.NewServerTool(GetMe(getClient, t)),
+			toolsets.NewServerTool(GetMe(getClient, installationID, t)),
 			toolsets.NewServerTool(GetTeams(getClient, getGQLClient, t)),
 			toolsets.NewServerTool(GetTeamMembers(getGQLClient, t)),
 		)

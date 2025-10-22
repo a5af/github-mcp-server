@@ -37,7 +37,7 @@ type UserDetails struct {
 
 // GetMe creates a tool to get details of the authenticated user or GitHub App installation.
 // For OAuth tokens, returns user details. For GitHub App tokens, returns installation account details.
-func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+func GetMe(getClient GetClientFn, installationID int64, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	tool := mcp.NewTool("get_me",
 		mcp.WithDescription(t("TOOL_GET_ME_DESCRIPTION", "Get details of the authenticated GitHub user or installation. Use this to verify your identity. For OAuth: returns user profile. For GitHub Apps: returns installation account (org/user the app is installed on).")),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -59,11 +59,11 @@ func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Too
 		// If we get 401 or 403, we're likely using GitHub App auth - try installation endpoint
 		if err != nil && res != nil && (res.StatusCode == 401 || res.StatusCode == 403) {
 			// Get installation info instead
-			installation, _, instErr := client.Apps.GetInstallation(ctx, 0)
+			installation, _, instErr := client.Apps.GetInstallation(ctx, installationID)
 			if instErr != nil {
 				// If installation endpoint also fails, return original user error
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get user or installation",
+					"failed to get user or installation (installation ID: " + fmt.Sprintf("%d", installationID) + ")",
 					res,
 					err,
 				), nil

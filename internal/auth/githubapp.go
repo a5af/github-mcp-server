@@ -67,6 +67,10 @@ func (p *GitHubAppAuthProvider) GetToken() (string, error) {
 	}
 	return p.currentToken.Token, nil
 }
+// GetInstallationID returns the GitHub App installation ID
+func (p *GitHubAppAuthProvider) GetInstallationID() int64 {
+	return p.installationID
+}
 
 // generateJWT creates a signed JWT for GitHub App authentication
 func (p *GitHubAppAuthProvider) generateJWT() (string, error) {
