@@ -53,20 +53,19 @@ func GetMe(getClient GetClientFn, installationID int64, t translations.Translati
 			return mcp.NewToolResultErrorFromErr("failed to get GitHub client", err), nil
 		}
 
-		// Try getting user info first (works for OAuth tokens)
-		user, res, err := client.Users.Get(ctx, "")
-
-		// If we get 401 or 403, we're likely using GitHub App auth
-		// Use installation token to list repos and extract owner info
-		if err != nil && res != nil && (res.StatusCode == 401 || res.StatusCode == 403) {
+		// If we have an installation ID, we're using GitHub App auth
+		// Always use the GitHub App path to get the installation account details
+		// Note: Some installation tokens can call /user successfully but return the
+		// installing user's identity (not the app installation account)
+		if installationID > 0 {
 			// List repositories accessible to this installation
 			// This works with installation tokens (unlike GetInstallation which needs JWT)
-			repos, _, repoErr := client.Apps.ListRepos(ctx, nil)
+			repos, res, repoErr := client.Apps.ListRepos(ctx, nil)
 			if repoErr != nil || repos == nil || len(repos.Repositories) == 0 {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to get installation info (installation ID: "+fmt.Sprintf("%d", installationID)+"): no accessible repositories found",
 					res,
-					err,
+					repoErr,
 				), nil
 			}
 
@@ -94,6 +93,9 @@ func GetMe(getClient GetClientFn, installationID int64, t translations.Translati
 			}
 			return mcp.NewToolResultText(string(r)), nil
 		}
+
+		// OAuth or PAT authentication - try getting user info
+		user, res, err := client.Users.Get(ctx, "")
 
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx,

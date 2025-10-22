@@ -1,6 +1,22 @@
 ## [Unreleased]
 
 
+## [0.20.6] - 2025-10-22
+
+### Fixed
+- `get_me` now correctly detects GitHub App authentication by checking installation ID first
+- Prevents GitHub App tokens from incorrectly returning OAuth user identity
+- Some installation tokens can successfully call `/user` endpoint but return wrong identity (installing user instead of app account)
+
+### Technical
+- Changed detection logic: check `installationID > 0` before attempting `Users.Get`
+- Ensures GitHub App installations always use `ListRepos` path regardless of token capabilities
+- Updated comments to document the authentication path selection logic
+
+### Background
+The previous v0.20.5 fix used error-based detection (401/403 from Users.Get), but some GitHub App installation tokens can successfully call the `/user` endpoint. When they do, they return the installing user's identity (e.g., "a5af") instead of the app installation account. This fix ensures we always use the correct authentication path when we know we have a GitHub App (installationID > 0).
+
+
 ## [0.20.5] - 2025-10-22
 
 ### Fixed
