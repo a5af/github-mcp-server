@@ -155,7 +155,7 @@ func GetDefaultToolsetIDs() []string {
 	}
 }
 
-func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int) *toolsets.ToolsetGroup {
+func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int, installationID int64) *toolsets.ToolsetGroup {
 	tsg := toolsets.NewToolsetGroup(readOnly)
 
 	// Define all available features with their default state (disabled)
@@ -306,7 +306,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 
 	contextTools := toolsets.NewToolset(ToolsetMetadataContext.ID, ToolsetMetadataContext.Description).
 		AddReadTools(
-			toolsets.NewServerTool(GetMe(getClient, t)),
+			toolsets.NewServerTool(GetMe(getClient, installationID, t)),
 			toolsets.NewServerTool(GetTeams(getClient, getGQLClient, t)),
 			toolsets.NewServerTool(GetTeamMembers(getGQLClient, t)),
 		)
@@ -444,4 +444,78 @@ func GenerateToolsetsHelp() string {
 		"  - All tools: --toolsets=all"
 
 	return toolsetsHelp
+}
+
+// AddDefaultToolset removes the default toolset and expands it to the actual default toolset IDs
+func AddDefaultToolset(result []string) []string {
+	hasDefault := false
+	seen := make(map[string]bool)
+	for _, toolset := range result {
+		seen[toolset] = true
+		if toolset == ToolsetMetadataDefault.ID {
+			hasDefault = true
+		}
+	}
+
+	// Only expand if "default" keyword was found
+	if !hasDefault {
+		return result
+	}
+
+	result = RemoveToolset(result, ToolsetMetadataDefault.ID)
+
+	for _, defaultToolset := range GetDefaultToolsetIDs() {
+		if !seen[defaultToolset] {
+			result = append(result, defaultToolset)
+		}
+	}
+	return result
+}
+
+// cleanToolsets cleans and handles special toolset keywords:
+// - Duplicates are removed from the result
+// - Removes whitespaces
+// - Validates toolset names and returns invalid ones separately - for warning reporting
+// Returns: (toolsets, invalidToolsets)
+func CleanToolsets(enabledToolsets []string) ([]string, []string) {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(enabledToolsets))
+	invalid := make([]string, 0)
+	validIDs := GetValidToolsetIDs()
+
+	// Add non-default toolsets, removing duplicates and trimming whitespace
+	for _, toolset := range enabledToolsets {
+		trimmed := strings.TrimSpace(toolset)
+		if trimmed == "" {
+			continue
+		}
+		if !seen[trimmed] {
+			seen[trimmed] = true
+			result = append(result, trimmed)
+			if !validIDs[trimmed] {
+				invalid = append(invalid, trimmed)
+			}
+		}
+	}
+
+	return result, invalid
+}
+
+func RemoveToolset(tools []string, toRemove string) []string {
+	result := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		if tool != toRemove {
+			result = append(result, tool)
+		}
+	}
+	return result
+}
+
+func ContainsToolset(tools []string, toCheck string) bool {
+	for _, tool := range tools {
+		if tool == toCheck {
+			return true
+		}
+	}
+	return false
 }

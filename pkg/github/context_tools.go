@@ -2,6 +2,8 @@ package github
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -33,12 +35,13 @@ type UserDetails struct {
 	OwnedPrivateRepos int64     `json:"owned_private_repos,omitempty"`
 }
 
-// GetMe creates a tool to get details of the authenticated user.
-func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+// GetMe creates a tool to get details of the authenticated user or GitHub App installation.
+// For OAuth tokens, returns user details. For GitHub App tokens, returns installation account details.
+func GetMe(getClient GetClientFn, installationID int64, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	tool := mcp.NewTool("get_me",
-		mcp.WithDescription(t("TOOL_GET_ME_DESCRIPTION", "Get details of the authenticated GitHub user. Use this when a request is about the user's own profile for GitHub. Or when information is missing to build other tool calls.")),
+		mcp.WithDescription(t("TOOL_GET_ME_DESCRIPTION", "Get details of the authenticated GitHub user or installation. Use this to verify your identity. For OAuth: returns user profile. For GitHub Apps: returns installation account (org/user the app is installed on).")),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
-			Title:        t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
+			Title:        t("TOOL_GET_ME_USER_TITLE", "Get my identity"),
 			ReadOnlyHint: ToBoolPtr(true),
 		}),
 	)
@@ -50,7 +53,50 @@ func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Too
 			return mcp.NewToolResultErrorFromErr("failed to get GitHub client", err), nil
 		}
 
+		// If we have an installation ID, we're using GitHub App auth
+		// Always use the GitHub App path to get the installation account details
+		// Note: Some installation tokens can call /user successfully but return the
+		// installing user's identity (not the app installation account)
+		if installationID > 0 {
+			// List repositories accessible to this installation
+			// This works with installation tokens (unlike GetInstallation which needs JWT)
+			repos, res, repoErr := client.Apps.ListRepos(ctx, nil)
+			if repoErr != nil || repos == nil || len(repos.Repositories) == 0 {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to get installation info (installation ID: "+fmt.Sprintf("%d", installationID)+"): no accessible repositories found",
+					res,
+					repoErr,
+				), nil
+			}
+
+			// Extract owner info from first repository
+			// All repos in an installation belong to the same owner (org or user)
+			owner := repos.Repositories[0].GetOwner()
+			minimalUser := MinimalUser{
+				Login:      owner.GetLogin(),
+				ID:         owner.GetID(),
+				ProfileURL: owner.GetHTMLURL(),
+				AvatarURL:  owner.GetAvatarURL(),
+				Details: &UserDetails{
+					Name:     owner.GetName(),
+					Company:  owner.GetCompany(),
+					Blog:     owner.GetBlog(),
+					Location: owner.GetLocation(),
+					Email:    owner.GetEmail(),
+					Bio:      owner.GetBio(),
+				},
+			}
+
+			r, err := json.Marshal(minimalUser)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal installation account: %w", err)
+			}
+			return mcp.NewToolResultText(string(r)), nil
+		}
+
+		// OAuth or PAT authentication - try getting user info
 		user, res, err := client.Users.Get(ctx, "")
+
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx,
 				"failed to get user",
